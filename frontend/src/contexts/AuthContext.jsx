@@ -1,0 +1,102 @@
+/*
+  AuthContext — Centralised authentication state for the entire app.
+  Wraps the React tree so every component can `useAuth()`.
+  On mount it tries to restore the session from the httpOnly cookie (GET /auth/me).
+*/
+
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { authAPI } from '../services/api';
+
+const AuthContext = createContext(null);
+
+export function AuthProvider({ children }) {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true); // true while we check cookies
+  const [error, setError] = useState(null);
+  const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
+
+  const isAuthenticated = !!user;
+
+  /* ── Restore session on mount ─────────────────────────────── */
+  const fetchUser = useCallback(async () => {
+    try {
+      const data = await authAPI.getMe();
+      const fetchedUser = data.data?.user ?? data.user ?? data;
+      setUser(fetchedUser);
+      setRequiresPasswordChange(Boolean(fetchedUser?.firstUse));
+      setError(null);
+    } catch {
+      setUser(null);
+      setRequiresPasswordChange(false);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUser();
+  }, [fetchUser]);
+
+  /* ── Login ────────────────────────────────────────────────── */
+  const login = async (email, password) => {
+    setError(null);
+    const data = await authAPI.login(email, password);
+    const loggedUser = data.data?.user ?? data.user;
+    const shouldChangePassword = Boolean(data.data?.requiresPasswordChange || loggedUser?.firstUse);
+
+    setUser(loggedUser);
+    setRequiresPasswordChange(shouldChangePassword);
+
+    return {
+      user: loggedUser,
+      requiresPasswordChange: shouldChangePassword,
+    };
+  };
+
+  /* ── Register ─────────────────────────────────────────────── */
+  const register = async (userData) => {
+    setError(null);
+    const data = await authAPI.register(userData);
+    const newUser = data.data?.user ?? data.user;
+    setUser(newUser);
+    setRequiresPasswordChange(Boolean(newUser?.firstUse));
+    return newUser;
+  };
+
+  /* ── Logout ───────────────────────────────────────────────── */
+  const logout = async () => {
+    try {
+      await authAPI.logout();
+    } catch {
+      /* best-effort */
+    }
+    setUser(null);
+    setRequiresPasswordChange(false);
+  };
+
+  const clearError = () => setError(null);
+
+  const value = {
+    user,
+    loading,
+    error,
+    isAuthenticated,
+    requiresPasswordChange,
+    setRequiresPasswordChange,
+    login,
+    register,
+    logout,
+    fetchUser,
+    clearError,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+}
+
+export function useAuth() {
+  const ctx = useContext(AuthContext);
+  if (!ctx) throw new Error('useAuth must be used inside <AuthProvider>');
+  return ctx;
+}
+
+export default AuthContext;

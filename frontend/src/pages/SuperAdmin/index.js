@@ -1,0 +1,8 @@
+export { default as SuperAdminDashboardPage } from './Dashboard';
+export { default as SuperAdminUsersPage } from './Users';
+export { default as SuperAdminRolesPage } from './Roles';
+export { default as SuperAdminSettingsPage } from './Settings';
+export { default as SuperAdminSystemConfigPage } from './SystemConfig';
+export { default as SuperAdminLogsPage } from './Logs';
+export { default as SuperAdminBackupPage } from './Backup';
+export { default as SuperAdminProfilePage } from './Profile';
